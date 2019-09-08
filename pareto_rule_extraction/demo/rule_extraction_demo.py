@@ -25,12 +25,13 @@ def classification_example():
     X, y = get_data(class_regr='class')
     clf = RandomForestClassifier(n_estimators=100, max_depth=2, min_samples_leaf=.1)
     clf.fit(X, y)
+    clf.predict()
     rex = rule_extractor.RuleExtractor(clf, feature_names=X.columns, debug=1)
-    rc = rex.get_rule_counts()
+    rc = rex._get_rule_counts()
     print(rc)
     stats = rex.extract_rule_statistics(top_n=10)
     print(stats)
-    print(rex.predict_sample(X.iloc[-1]))
+    print(rex._predict_sample(X.iloc[-1]))
     print(rex.rules_summary())
 
 
@@ -38,13 +39,14 @@ def regression_example():
     X, y = get_data(class_regr='regr')
     clf = RandomForestRegressor(n_estimators=100, max_depth=2, min_samples_leaf=.1)
     clf.fit(X, y)
+    clf.predict()
     rex = rule_extractor.RuleExtractor(clf, feature_names=X.columns, debug=1)
-    rex.extract_rules()
-    rc = rex.get_rule_counts()
+    rex._extract_rules()
+    rc = rex._get_rule_counts()
     print(rc)
     stats = rex.extract_rule_statistics(top_n=10)
     print(stats)
-    print(rex.predict_sample(X.iloc[-1]))
+    print(rex._predict_sample(X.iloc[-1]))
     print(rex.rules_summary())
 
 if __name__ == '__main__':

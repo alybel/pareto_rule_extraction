@@ -7,11 +7,26 @@ from pandas.core.common import flatten
 
 class RuleExtractor:
     def __init__(self, estimator, feature_names=None, class_names=None, show_progress=False, debug=0):
+        """
+        The rule extractor accepts a Random Forest Classifier or Random Forest Regressor from scikit learn.
+        lternatively, a pipeline can be provided. Feature names must be provided. The method does not
+        work for multiclass classifiers.
+
+
+        :param estimator:
+        :param feature_names:
+        :param class_names:
+        :param show_progress:
+        :param debug:
+        """
+
         self.show_progress = show_progress
         if type(estimator) == Pipeline:
             estimator = estimator.steps[-1][-1]  # last step is the tuple of estimator ('clf', some_estimator)
 
         self.estimator = estimator
+        if feature_names is None:
+            raise AttributeError('Feature names must be provided.')
         self.feature_names = feature_names
         self.n_features = self.estimator.n_features_
         self.class_names = class_names
@@ -119,7 +134,7 @@ class RuleExtractor:
             all_rules.append(list(reversed(rules)))
         return all_rules
 
-    def extract_rules(self):
+    def _extract_rules(self):
         """
         Loop over tree estimators and extract all rules from all trees in the forest. All rules with sample sizes at nodes
         and threshold values are returned in a dataframe. No aggregation happens on this level. The object variable
@@ -127,6 +142,9 @@ class RuleExtractor:
         This is the first necessary step to apply the rule aggregation mechanism.
         :return: extracted_rules
         """
+        if self.extracted_rules is not None:
+            print('rule have already been extracted')
+            return
         if self.debug:
             print('running extract_rules')
         estimators = self.estimator.estimators_
@@ -161,17 +179,8 @@ class RuleExtractor:
 
         df = pd.DataFrame(df, columns=self.names)
         self.extracted_rules = df
-        return df
 
-    def get_feature_counts(self):
-        if self.debug:
-            print('running get_feature_counts')
-        if self.feature_names:
-            return self.extracted_rules['FEATURE_NAME'].value_counts()
-        else:
-            return self.extracted_rules['FEATURE_ID'].value_counts()
-
-    def get_rule_counts(self, top_n=None):
+    def _get_rule_counts(self, top_n=None):
         """
         Count per Rule (RULE_NAME) and Direction how often it was found. Return a list of distinct rules.
         Result is ordered by rule occurrence in a descending fashion.
@@ -184,7 +193,7 @@ class RuleExtractor:
         if self.debug:
             print('running get_rule_counts')
         if self.extracted_rules is None:
-            self.extract_rules()
+            self._extract_rules()
         distinct_rules = self.extracted_rules[["RULE_ID", "RULE_NAME", "DIRECTION_NAME", "TREE_ID"]].drop_duplicates()
         distinct_rules = distinct_rules.groupby(['RULE_NAME', "DIRECTION_NAME"])["TREE_ID"].count().reset_index(
             name="N_TREES_WITH_RULE")
@@ -198,9 +207,9 @@ class RuleExtractor:
         elif top_n >= 1:
             return distinct_rules.iloc[:top_n]
 
-    def extract_rule_statistics(self, weighted=True, use_median=False, top_n=None):
+    def extract_rule_statistics(self, top_n=None, weighted=True, use_median=False):
         """
-        A new dataframe is produced on top of
+        Here, the rules get merged into a dataframe that contains all values necessary for further processing.
         :param weighted:
         :param use_median:
         :return:
@@ -220,7 +229,7 @@ class RuleExtractor:
         ruledf = pd.DataFrame(columns=columns)
 
         # get the distinct rules and their count
-        distinct_rules = self.get_rule_counts(top_n=top_n)
+        distinct_rules = self._get_rule_counts(top_n=top_n)
 
         # extract statistics for all distinct rules
         new_rule_id = 0
@@ -314,21 +323,23 @@ class RuleExtractor:
                                                     columns=columns))
             new_rule_id += 1
         self.rule_statistics = ruledf
-        return ruledf
+        print('wrote result of extract_rule_statistics to rule_statistics')
 
-    def apply_signum_to_predictions(self, default_prediction=0):
-        preds = []
-        for pred in self.predictions:
-            pred = [np.sign(e) if e is not None else default_prediction for e in pred]
-            preds.append(pred)
-        self.predictions = preds
-
-    def predict_for_top_n(self, n, weighted=True, default_prediction=0):
+    def predict_for_top_n(self, predictions, top_n, weighted=False, default_prediction=0):
+        """
+        aggregate predictions on the level of each prediction per rule result. top_n here can be lower or equal to
+        the top_n used in extract_rule_statistic.
+        :param predictions: Dataframe containing the prediction as they are returned by predict_samples
+        :param top_n:
+        :param weighted:
+        :param default_prediction:
+        :return:
+        """
         y_pred = []
         # for each sample
         for idx, pred in enumerate(self.predictions):
             # get the predictions of this sample for the top_n rules to compute average (dismiss Nones)
-            pred = [i for i in pred[:n] if i is not None]
+            pred = [i for i in pred[:top_n] if i is not None]
 
             if len(pred) == 0:
                 y_pred.append(default_prediction)
@@ -336,7 +347,7 @@ class RuleExtractor:
             else:
                 if weighted:
                     # samp are the number of samples for each rule which had this rule in training (used as weights)
-                    samp = [i for i in self.samples[idx][:n] if i is not None]
+                    samp = [i for i in self.samples[idx][:top_n] if i is not None]
                     av = np.average(pred, weights=samp)
                 else:
                     print(pred)
@@ -357,12 +368,12 @@ class RuleExtractor:
         result_samples = pd.DataFrame()
         for index, sample in samples.iterrows():
             sample.get('density')
-            ret = self.predict_sample(sample, with_var=with_var)
+            ret = self._predict_sample(sample, with_var=with_var)
             result_predictions = pd.concat([result_predictions, pd.Series(ret[0])], axis=1)
             result_samples = pd.concat([result_samples, pd.Series(ret[1])], axis=1)
         return result_predictions, result_samples
 
-    def predict_sample(self, sample, with_var=False, default_prediction=0):
+    def _predict_sample(self, sample, with_var=False):
         """
         create a prediction for one sample. Each rule that falls into the top_n category is utilized here. If the rule
         applies to the presented data, the return value as per the rule_statistics are created.
@@ -420,7 +431,7 @@ class RuleExtractor:
                             if with_var:
                                 curr_var = getattr(row, "THRESHOLD_VAR")
                                 curr_threshold -= curr_var
-                            if not this_value >= curr_threshold:
+                            if not this_value > curr_threshold:
                                 rule_fits = False
                                 predictions.append(None)
                                 samples.append(None)
@@ -430,13 +441,20 @@ class RuleExtractor:
                     predictions.append(curr_value)
 
                     # also append samples count, to compute weighted if needed
-                    curr_samples = getattr(row, "SAMPLES")
+                    curr_samples = getattr(row, "COUNT")
                     samples.append(curr_samples)
-        return (predictions, samples)
+        return predictions, samples
 
-    def rules_summary(self, top_n=None):
+    def summary(self, top_n=None):
+        """
+        produce a summary view for the top_n rules. The result is a table that contains all information in a
+        human readable format.
+        :param top_n:
+        :return:
+        """
+
         if self.rule_statistics is None:
-            raise AttributeError('Produce Rule Statistics first')
+            self.extract_rule_statistics(top_n=top_n)
 
         curr_id = 0
         depth_count = 0
@@ -445,7 +463,7 @@ class RuleExtractor:
         rules = {}
         rules[0] = {}
         max_depth = 0
-        rowcount =0
+        rowcount = 0
 
         for index, row in self.rule_statistics.iterrows():
             rowcount += 1
@@ -474,7 +492,6 @@ class RuleExtractor:
                 rules[prev_id]['COUNT'] = getattr(old_row, 'COUNT')
                 rules[prev_id]['VALUE'] = getattr(old_row, 'VALUE')
                 rules[prev_id]['VAR'] = getattr(old_row, 'VALUE_VAR')
-
 
                 rules[curr_id]['Feature_%d' % depth_count] = getattr(row, 'FEATURE_NAME')
                 rules[curr_id]['Threshold_%d' % depth_count] = getattr(row, 'THRESHOLD')
