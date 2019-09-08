@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from sklearn.pipeline import Pipeline
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+from pandas.core.common import flatten
 
 
 class RuleExtractor:
@@ -348,20 +349,28 @@ class RuleExtractor:
         return y_pred
 
     def predict_samples(self, samples, with_var=False):
-        self.predictions = []
-        self.samples = []
-        for sample in samples:
+        """
+        predict many samples with the predict_sample method
+        :param samples:
+        :param with_var:
+        :return:
+        """
+        if not isinstance(samples, pd.DataFrame):
+            raise AttributeError('Pandas Dataframe expected')
+        result_predictions = pd.DataFrame()
+        result_samples = pd.DataFrame()
+        for sample in samples.itertuples():
             ret = self.predict_sample(sample, with_var=with_var)
-            self.predictions.append(ret[0])
-            self.samples.append(ret[1])
-        return self
+            result_predictions = pd.concat([result_predictions, pd.Series(ret[0])], axis = 1)
+            result_samples = pd.concat([result_samples, pd.Series(ret[1])], axis = 1)
+        return result_predictions, result_samples
 
     def predict_sample(self, sample, with_var=False, default_prediction=0):
         """
         create a prediction for one sample. Each rule that falls into the top_n category is utilized here. If the rule
         applies to the presented data, the return value as per the rule_statistics are created.
         If the rule does not apply, None is returned. Per rule, one prediction is produced. Hence, the output format is
-        (pred_rule1, pred_rule2, ...), (samples_rule1, samples_rule2, ...)
+        (pred_rule1, pred_rule2, ..., pred_rule_topn), (samples_rule1, samples_rule2, ..., samples_topn)
 
         :param sample:
         :param with_var:
@@ -373,6 +382,9 @@ class RuleExtractor:
         samples = []
         curr_id = 0
         rule_fits = True
+
+        if self.rule_statistics is None:
+            raise AttributeError('Produce Rule Statistics first')
 
         # iterate through the rows of rule_statistics, one rule is more than one row
         for row in self.rule_statistics.itertuples():
@@ -423,3 +435,62 @@ class RuleExtractor:
                     curr_samples = getattr(row, "SAMPLES")
                     samples.append(curr_samples)
         return (predictions, samples)
+
+    def rules_summary(self, top_n = None):
+        if self.rule_statistics is None:
+            raise AttributeError('Produce Rule Statistics first')
+
+        curr_id = 0
+        depth_count=0
+        new_rule_starts = False
+
+        rules = {}
+        rules[0] = {}
+        max_depth = 0
+
+        for row in self.rule_statistics.itertuples():
+            # check if were still in the same rule, if not, reset rule_fits
+            prev_id = curr_id
+            curr_id = getattr(row, "RULE_DIRECTION_ID")
+
+            if curr_id != prev_id:
+                new_rule_starts = True
+                max_depth = max(depth_count,max_depth)
+                depth_count = 0
+                rules[curr_id] = {}
+
+
+            if new_rule_starts:
+                rules[prev_id]['RULE_NAME'] = getattr(old_row, 'RULE_NAME')
+                rules[prev_id]['RULE_DIRECTION_ID'] = getattr(old_row, 'RULE_DIRECTION_ID')
+                rules[prev_id]['DIRECTION_NAME'] = getattr(old_row, 'DIRECTION_NAME')
+                rules[prev_id]['COUNT'] = getattr(old_row, 'COUNT')
+                rules[prev_id]['VALUE'] = getattr(old_row, 'VALUE')
+                rules[prev_id]['VAR'] = getattr(old_row, 'VALUE_VAR')
+
+                rules[curr_id]['Feature_%d' % depth_count] = getattr(row, 'FEATURE_NAME')
+                rules[curr_id]['Threshold_%d' % depth_count] = getattr(row, 'THRESHOLD')
+                rules[curr_id]['ThresholdVariance_%d' % depth_count] = getattr(row, 'THRESHOLD_VAR')
+                rules[curr_id]['Direction_%d' % depth_count] = getattr(row, 'DIRECTION')
+                depth_count += 1
+                prev_id = curr_id
+            else:
+                rules[curr_id]['Feature_%d' % depth_count] = getattr(row, 'FEATURE_NAME')
+                rules[curr_id]['Threshold_%d' % depth_count] = getattr(row, 'THRESHOLD')
+                rules[curr_id]['ThresholdVariance_%d' % depth_count] = getattr(row, 'THRESHOLD_VAR')
+                rules[curr_id]['Direction_%d' % depth_count] = getattr(row, 'DIRECTION')
+                depth_count += 1
+            new_rule_starts = False
+            old_row = row
+
+        res = pd.DataFrame(rules).T
+        cols = ['RULE_DIRECTION_ID', 'RULE_NAME', 'DIRECTION_NAME', 'COUNT', 'VALUE', 'VAR']
+        cols.extend([['Feature_%d' % i, 'Direction_%d' %i, 'Threshold_%d' % i, 'ThresholdVariance_%d' % i] for i in range(max_depth)])
+        cols =  list(flatten(cols))
+        res = res[cols]
+        return res
+
+
+
+
+
