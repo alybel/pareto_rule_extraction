@@ -19,7 +19,6 @@ class RuleExtractor:
         self.predictions = []
         self.samples = []
 
-
         if type(estimator) == RandomForestClassifier:
             self.random_forest_type = "classifier"
             names = ["RULE_ID", "RULE_NAME", "DIRECTION_NAME", "TREE_ID", "NODE_ID", "FEATURE_ID"]
@@ -251,7 +250,6 @@ class RuleExtractor:
             values = []
             count = 0
 
-
             # iterate through ids and collect information
             for curr_id in ids:
                 # get full rules for this id from the actual df
@@ -318,15 +316,13 @@ class RuleExtractor:
         self.rule_statistics = ruledf
         return ruledf
 
+    def apply_signum_to_predictions(self, default_prediction=0):
+        preds = []
+        for pred in self.predictions:
+            pred = [np.sign(e) if e is not None else default_prediction for e in pred]
+            preds.append(pred)
+        self.predictions = preds
 
-      
-    def apply_signum_to_predictions(self, default_prediction = 0):
-      preds =[]
-      for pred in self.predictions:
-        pred = [np.sign(e) if e is not None else default_prediction for e in pred]
-        preds.append(pred)
-      self.predictions = preds
-      
     def predict_for_top_n(self, n, weighted=True, default_prediction=0):
         y_pred = []
         # for each sample
@@ -343,8 +339,8 @@ class RuleExtractor:
                     samp = [i for i in self.samples[idx][:n] if i is not None]
                     av = np.average(pred, weights=samp)
                 else:
-                  print(pred)
-                  av = np.average(pred)
+                    print(pred)
+                    av = np.average(pred)
                 y_pred.append(av)
         return y_pred
 
@@ -361,8 +357,8 @@ class RuleExtractor:
         result_samples = pd.DataFrame()
         for sample in samples.itertuples():
             ret = self.predict_sample(sample, with_var=with_var)
-            result_predictions = pd.concat([result_predictions, pd.Series(ret[0])], axis = 1)
-            result_samples = pd.concat([result_samples, pd.Series(ret[1])], axis = 1)
+            result_predictions = pd.concat([result_predictions, pd.Series(ret[0])], axis=1)
+            result_samples = pd.concat([result_samples, pd.Series(ret[1])], axis=1)
         return result_predictions, result_samples
 
     def predict_sample(self, sample, with_var=False, default_prediction=0):
@@ -436,29 +432,38 @@ class RuleExtractor:
                     samples.append(curr_samples)
         return (predictions, samples)
 
-    def rules_summary(self, top_n = None):
+    def rules_summary(self, top_n=None):
         if self.rule_statistics is None:
             raise AttributeError('Produce Rule Statistics first')
 
         curr_id = 0
-        depth_count=0
+        depth_count = 0
         new_rule_starts = False
 
         rules = {}
         rules[0] = {}
         max_depth = 0
+        rowcount =0
 
         for row in self.rule_statistics.itertuples():
+            rowcount += 1
             # check if were still in the same rule, if not, reset rule_fits
             prev_id = curr_id
             curr_id = getattr(row, "RULE_DIRECTION_ID")
 
+            if rowcount == self.rule_statistics.shape[0]:
+                rules[curr_id]['RULE_NAME'] = getattr(row, 'RULE_NAME')
+                rules[curr_id]['RULE_DIRECTION_ID'] = getattr(row, 'RULE_DIRECTION_ID')
+                rules[curr_id]['DIRECTION_NAME'] = getattr(row, 'DIRECTION_NAME')
+                rules[curr_id]['COUNT'] = getattr(row, 'COUNT')
+                rules[curr_id]['VALUE'] = getattr(row, 'VALUE')
+                rules[curr_id]['VAR'] = getattr(row, 'VALUE_VAR')
+
             if curr_id != prev_id:
                 new_rule_starts = True
-                max_depth = max(depth_count,max_depth)
+                max_depth = max(depth_count, max_depth)
                 depth_count = 0
                 rules[curr_id] = {}
-
 
             if new_rule_starts:
                 rules[prev_id]['RULE_NAME'] = getattr(old_row, 'RULE_NAME')
@@ -468,29 +473,30 @@ class RuleExtractor:
                 rules[prev_id]['VALUE'] = getattr(old_row, 'VALUE')
                 rules[prev_id]['VAR'] = getattr(old_row, 'VALUE_VAR')
 
+
                 rules[curr_id]['Feature_%d' % depth_count] = getattr(row, 'FEATURE_NAME')
                 rules[curr_id]['Threshold_%d' % depth_count] = getattr(row, 'THRESHOLD')
                 rules[curr_id]['ThresholdVariance_%d' % depth_count] = getattr(row, 'THRESHOLD_VAR')
                 rules[curr_id]['Direction_%d' % depth_count] = getattr(row, 'DIRECTION')
-                depth_count += 1
+                depth_count = 1
                 prev_id = curr_id
             else:
-                rules[curr_id]['Feature_%d' % depth_count] = getattr(row, 'FEATURE_NAME')
-                rules[curr_id]['Threshold_%d' % depth_count] = getattr(row, 'THRESHOLD')
-                rules[curr_id]['ThresholdVariance_%d' % depth_count] = getattr(row, 'THRESHOLD_VAR')
-                rules[curr_id]['Direction_%d' % depth_count] = getattr(row, 'DIRECTION')
-                depth_count += 1
+                if getattr(row, 'FEATURE_NAME') is not None:
+                    rules[curr_id]['Feature_%d' % depth_count] = getattr(row, 'FEATURE_NAME')
+                    rules[curr_id]['Threshold_%d' % depth_count] = getattr(row, 'THRESHOLD')
+                    rules[curr_id]['ThresholdVariance_%d' % depth_count] = getattr(row, 'THRESHOLD_VAR')
+                    rules[curr_id]['Direction_%d' % depth_count] = getattr(row, 'DIRECTION')
+                    depth_count += 1
+
+
+
             new_rule_starts = False
             old_row = row
 
         res = pd.DataFrame(rules).T
         cols = ['RULE_DIRECTION_ID', 'RULE_NAME', 'DIRECTION_NAME', 'COUNT', 'VALUE', 'VAR']
-        cols.extend([['Feature_%d' % i, 'Direction_%d' %i, 'Threshold_%d' % i, 'ThresholdVariance_%d' % i] for i in range(max_depth)])
-        cols =  list(flatten(cols))
+        cols.extend([['Feature_%d' % i, 'Direction_%d' % i, 'Threshold_%d' % i, 'ThresholdVariance_%d' % i] for i in
+                     range(max_depth)])
+        cols = list(flatten(cols))
         res = res[cols]
         return res
-
-
-
-
-
