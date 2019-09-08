@@ -224,7 +224,7 @@ class RuleExtractor:
 
         # extract statistics for all distinct rules
         new_rule_id = 0
-        for row in distinct_rules.itertuples():
+        for index, row in distinct_rules.iterrows():
             # get all the rules for the current RULE_/DIRECTION_NAME
             rule_name = getattr(row, "RULE_NAME")
             dir_name = getattr(row, "DIRECTION_NAME")
@@ -355,7 +355,8 @@ class RuleExtractor:
             raise AttributeError('Pandas Dataframe expected')
         result_predictions = pd.DataFrame()
         result_samples = pd.DataFrame()
-        for sample in samples.itertuples():
+        for index, sample in samples.iterrows():
+            sample.get('density')
             ret = self.predict_sample(sample, with_var=with_var)
             result_predictions = pd.concat([result_predictions, pd.Series(ret[0])], axis=1)
             result_samples = pd.concat([result_samples, pd.Series(ret[1])], axis=1)
@@ -383,7 +384,7 @@ class RuleExtractor:
             raise AttributeError('Produce Rule Statistics first')
 
         # iterate through the rows of rule_statistics, one rule is more than one row
-        for row in self.rule_statistics.itertuples():
+        for index, row in self.rule_statistics.iterrows():
             # check if were still in the same rule, if not, reset rule_fits
             prev_id = curr_id
             curr_id = getattr(row, "RULE_DIRECTION_ID")
@@ -395,13 +396,14 @@ class RuleExtractor:
             if rule_fits:
                 # check for the current feature if it is None, which means it is a leaf, so the rule actually fitted
                 curr_feature = getattr(row, "FEATURE_ID")
+                feature_name = getattr(row, 'FEATURE_NAME')
                 if curr_feature is not None:
                     # get threshold and direction
                     curr_threshold = getattr(row, "THRESHOLD")
                     curr_direction = getattr(row, "DIRECTION")
                     # get the feature value and check if the rule fits
                     curr_feature = int(curr_feature)
-                    this_value = sample[curr_feature]
+                    this_value = sample.get(feature_name)
                     if curr_feature is not None:
                         # does the rule fit? check for smaller equal or greater depending on direction
                         if curr_direction == "leq":
@@ -445,7 +447,7 @@ class RuleExtractor:
         max_depth = 0
         rowcount =0
 
-        for row in self.rule_statistics.itertuples():
+        for index, row in self.rule_statistics.iterrows():
             rowcount += 1
             # check if were still in the same rule, if not, reset rule_fits
             prev_id = curr_id
