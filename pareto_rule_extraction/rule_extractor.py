@@ -488,8 +488,6 @@ class RuleExtractor:
                     rules[curr_id]['Direction_%d' % depth_count] = getattr(row, 'DIRECTION')
                     depth_count += 1
 
-
-
             new_rule_starts = False
             old_row = row
 

@@ -30,6 +30,8 @@ def classification_example():
     print(rc)
     stats = rex.extract_rule_statistics(top_n=10)
     print(stats)
+    print(rex.predict_sample(X.iloc[-1]))
+    print(rex.rules_summary())
 
 
 def regression_example():
@@ -42,12 +44,12 @@ def regression_example():
     print(rc)
     stats = rex.extract_rule_statistics(top_n=10)
     print(stats)
-
     print(rex.predict_sample(X.iloc[-1]))
+    print(rex.rules_summary())
 
 if __name__ == '__main__':
     print('running regression example')
     regression_example()
 
-    #print('running classification example')
-    #classification_example()
+    print('running classification example')
+    classification_example()
