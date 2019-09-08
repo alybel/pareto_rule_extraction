@@ -357,6 +357,17 @@ class RuleExtractor:
         return self
 
     def predict_sample(self, sample, with_var=False, default_prediction=0):
+        """
+        create a prediction for one sample. Each rule that falls into the top_n category is utilized here. If the rule
+        applies to the presented data, the return value as per the rule_statistics are created.
+        If the rule does not apply, None is returned. Per rule, one prediction is produced. Hence, the output format is
+        (pred_rule1, pred_rule2, ...), (samples_rule1, samples_rule2, ...)
+
+        :param sample:
+        :param with_var:
+        :param default_prediction:
+        :return:
+        """
         # init
         predictions = []
         samples = []
@@ -369,7 +380,7 @@ class RuleExtractor:
             prev_id = curr_id
             curr_id = getattr(row, "RULE_DIRECTION_ID")
             if curr_id != prev_id:
-                # new rule
+                # new rule starts
                 rule_fits = True
 
             # check if the rule fits (which means if the current sample can follow the directions for the features of this rule)
@@ -392,6 +403,8 @@ class RuleExtractor:
                                 curr_threshold += curr_var
                             if not this_value <= curr_threshold:
                                 rule_fits = False
+                                predictions.append(None)
+                                samples.append(None)
                         else:
                             # if we allow variance, compare if greater with the threshold - variance
                             if with_var:

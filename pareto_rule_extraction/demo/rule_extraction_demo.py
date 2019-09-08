@@ -43,10 +43,11 @@ def regression_example():
     stats = rex.extract_rule_statistics(top_n=10)
     print(stats)
 
+    print(rex.predict_sample(X.iloc[-1]))
 
 if __name__ == '__main__':
     print('running regression example')
     regression_example()
 
-    print('running classification example')
-    classification_example()
+    #print('running classification example')
+    #classification_example()
