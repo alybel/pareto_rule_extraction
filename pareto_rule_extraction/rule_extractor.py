@@ -5,7 +5,7 @@ from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 
 
 class RuleExtractor:
-    def __init__(self, estimator, feature_names=None, class_names=None, show_progress=False):
+    def __init__(self, estimator, feature_names=None, class_names=None, show_progress=False, debug=0):
         self.show_progress = show_progress
         if type(estimator) == Pipeline:
             estimator = estimator.steps[-1][-1]  # last step is the tuple of estimator ('clf', some_estimator)
@@ -14,8 +14,10 @@ class RuleExtractor:
         self.feature_names = feature_names
         self.n_features = self.estimator.n_features_
         self.class_names = class_names
+        self.debug = debug
         self.predictions = []
         self.samples = []
+
 
         if type(estimator) == RandomForestClassifier:
             self.random_forest_type = "classifier"
@@ -43,6 +45,11 @@ class RuleExtractor:
             print("Finished intialisation.")
 
     def _get_leaves(self, tree):
+        """
+        This function is called within get_rules
+        :param tree:
+        :return:
+        """
         n_nodes = tree.node_count
         children_left = tree.children_left
         children_right = tree.children_right
@@ -63,6 +70,13 @@ class RuleExtractor:
         return leave_ids
 
     def _get_rules(self, tree, idx):
+        """
+        this function is called for each tree
+        :param tree:
+        :param idx:
+        :return:
+        """
+
         children_left = tree.children_left
         children_right = tree.children_right
         feature = tree.feature
@@ -113,6 +127,8 @@ class RuleExtractor:
         This is the first necessary step to apply the rule aggregation mechanism.
         :return: extracted_rules
         """
+        if self.debug:
+            print('running extract_rules')
         estimators = self.estimator.estimators_
         all_rules = []
         for idx, tree in enumerate(estimators):
@@ -148,6 +164,8 @@ class RuleExtractor:
         return df
 
     def get_feature_counts(self):
+        if self.debug:
+            print('running get_feature_counts')
         if self.feature_names:
             return self.extracted_rules['FEATURE_NAME'].value_counts()
         else:
@@ -163,6 +181,10 @@ class RuleExtractor:
         # get all possible RULE_/DIRECTION_NAMEs and sort them by count of trees they are used in
         # since the features are stored in different rows for one rule, each RULE_ID has RULE_NAME and DIRECTION_NAME
         # to find the ones with the same Features and Directions
+        if self.debug:
+            print('running get_rule_counts')
+        if self.extracted_rules is None:
+            self.extract_rules()
         distinct_rules = self.extracted_rules[["RULE_ID", "RULE_NAME", "DIRECTION_NAME", "TREE_ID"]].drop_duplicates()
         distinct_rules = distinct_rules.groupby(['RULE_NAME', "DIRECTION_NAME"])["TREE_ID"].count().reset_index(
             name="N_TREES_WITH_RULE")
@@ -183,6 +205,8 @@ class RuleExtractor:
         :param use_median:
         :return:
         """
+        if self.debug:
+            print('running extract_rule_statistics')
 
         # new dataframe for statistics with the following columns
         if self.feature_names is not None:
@@ -289,14 +313,7 @@ class RuleExtractor:
         self.rule_statistics = ruledf
         return ruledf
 
-    def predict_samples(self, samples, with_var=False):
-        self.predictions = []
-        self.samples = []
-        for sample in samples:
-            ret = self.predict_sample(sample, with_var=with_var)
-            self.predictions.append(ret[0])
-            self.samples.append(ret[1])
-        return self
+
       
     def apply_signum_to_predictions(self, default_prediction = 0):
       preds =[]
@@ -325,6 +342,15 @@ class RuleExtractor:
                   av = np.average(pred)
                 y_pred.append(av)
         return y_pred
+
+    def predict_samples(self, samples, with_var=False):
+        self.predictions = []
+        self.samples = []
+        for sample in samples:
+            ret = self.predict_sample(sample, with_var=with_var)
+            self.predictions.append(ret[0])
+            self.samples.append(ret[1])
+        return self
 
     def predict_sample(self, sample, with_var=False, default_prediction=0):
         # init

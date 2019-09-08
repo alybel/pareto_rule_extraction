@@ -1,6 +1,7 @@
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 import pandas as pd
-
+from pareto_rule_extraction import rule_extractor
+pd.set_option('max_columns', 999)
 
 def get_data(class_regr='class'):
     df = pd.read_csv('winequality-white.csv', ';')
@@ -14,14 +15,27 @@ def get_data(class_regr='class'):
 
 def classification_example():
     X, y = get_data(class_regr='class')
-    pass
+    clf = RandomForestClassifier(n_estimators=100, max_depth=3, min_samples_leaf=.1)
+    clf.fit(X, y)
+    rex = rule_extractor.RuleExtractor(clf, feature_names=X.columns, debug=1)
+    rex.extract_rule_statistics(top_n=10)
 
 
 def regression_example():
     X, y = get_data(class_regr='regr')
-    pass
+    clf = RandomForestRegressor(n_estimators=100, max_depth=3, min_samples_leaf=.1)
+    clf.fit(X, y)
+    rex = rule_extractor.RuleExtractor(clf, feature_names=X.columns, debug=1)
+    rex.extract_rules()
+    rc = rex.get_rule_counts()
+    print(rc)
+    stats = rex.extract_rule_statistics(top_n=10)
+    print(stats)
 
 
 if __name__ == '__main__':
-    classification_example()
+    print('running regression example')
     regression_example()
+
+    #print('running classification example')
+    #classification_example()
