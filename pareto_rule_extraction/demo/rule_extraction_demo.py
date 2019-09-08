@@ -1,6 +1,7 @@
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 import pandas as pd
 from pareto_rule_extraction import rule_extractor
+import os
 
 #pd.set_option('max_columns', 999)
 
@@ -16,7 +17,8 @@ def get_data(class_regr='class'):
 
 
 def demodata():
-    return pd.read_csv('winequality-white.csv', ';')
+    fp = os.path.dirname(__file__)
+    return pd.read_csv(os.path.join(fp, 'winequality-white.csv'), ';')
 
 
 def classification_example():
