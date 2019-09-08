@@ -250,6 +250,7 @@ class RuleExtractor:
             values = []
             count = 0
 
+
             # iterate through ids and collect information
             for curr_id in ids:
                 # get full rules for this id from the actual df
@@ -258,7 +259,10 @@ class RuleExtractor:
                 # get the needed information
                 samples.append([r for r in list(rules["N_SAMPLES"]) if r is not None])
                 thresholds.append([r for r in list(rules["THRESHOLD"]) if r is not None])
-                values.append([r for r in list(rules["VALUE"]) if r is not None])
+                if self.random_forest_type == 'regressor':
+                    values.append([r for r in list(rules["VALUE"]) if r is not None])
+                else:
+                    values.append([r for r in list(rules["P_True"]) if r is not None])
                 count += 1
 
             # iterate through steps/features of the rule to bring information in the correct format
