@@ -326,6 +326,7 @@ class RuleExtractor:
         print('wrote result of extract_rule_statistics to rule_statistics')
 
     def predict_for_top_n(self, predictions, top_n, weighted=False, default_prediction=0):
+        raise NotImplementedError('This functionality has to be adapted to the new predict_samples function!')
         """
         aggregate predictions on the level of each prediction per rule result. top_n here can be lower or equal to
         the top_n used in extract_rule_statistic.
