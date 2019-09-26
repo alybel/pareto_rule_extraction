@@ -473,12 +473,16 @@ class RuleExtractor:
             curr_id = getattr(row, "RULE_DIRECTION_ID")
 
             if rowcount == self.rule_statistics.shape[0]:
-                rules[curr_id]['RULE_NAME'] = getattr(row, 'RULE_NAME')
-                rules[curr_id]['RULE_DIRECTION_ID'] = getattr(row, 'RULE_DIRECTION_ID')
-                rules[curr_id]['DIRECTION_NAME'] = getattr(row, 'DIRECTION_NAME')
-                rules[curr_id]['COUNT'] = getattr(row, 'COUNT')
-                rules[curr_id]['VALUE'] = getattr(row, 'VALUE')
-                rules[curr_id]['VAR'] = getattr(row, 'VALUE_VAR')
+                try:
+                    rules[curr_id]['RULE_NAME'] = getattr(row, 'RULE_NAME')
+                    rules[curr_id]['RULE_DIRECTION_ID'] = getattr(row, 'RULE_DIRECTION_ID')
+                    rules[curr_id]['DIRECTION_NAME'] = getattr(row, 'DIRECTION_NAME')
+                    rules[curr_id]['COUNT'] = getattr(row, 'COUNT')
+                    rules[curr_id]['VALUE'] = getattr(row, 'VALUE')
+                    rules[curr_id]['VAR'] = getattr(row, 'VALUE_VAR')
+                except KeyError:
+                    pass
+
 
             if curr_id != prev_id:
                 new_rule_starts = True
